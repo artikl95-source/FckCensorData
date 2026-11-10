@@ -1,6 +1,9 @@
-// fckbot for GitHub Actions — polls Telegram, adds tracks to the FckCensorData fork.
-// Env: TG_TOKEN (secret), GH_TOKEN (github.token), GH_REPOSITORY (github.repository).
-// State: repo Actions variables FCKBOT_OFFSET, FCKBOT_PENDING (audio file_id awaiting its link).
+// fckbot for GitHub Actions — processes ONE Telegram update forwarded by the
+// Cloudflare webhook worker via workflow_dispatch inputs.payload.
+// Env: TG_TOKEN (secret), GH_TOKEN (secrets.GITHUB_TOKEN), GH_REPOSITORY.
+// State: custom/bot_state.json (pending audio) and custom/bot_owner.txt (chat id).
+
+const fs = require('fs');
 
 const TG = 'https://api.telegram.org/bot' + process.env.TG_TOKEN;
 const GH = 'https://api.github.com';
@@ -8,8 +11,8 @@ const REPO = process.env.GH_REPOSITORY;
 const TOKEN = process.env.GH_TOKEN;
 const BRANCH = 'main';
 const TEMPLATE = 'raw.githubusercontent.com/' + REPO + '/refs/heads/main/tracks/%%';
-
-const OWNER_CHAT_FILE = 'custom/bot_owner.txt';
+const STATE_FILE = 'custom/bot_state.json';
+const OWNER_FILE = 'custom/bot_owner.txt';
 
 function ghHeaders(extra) {
   return Object.assign({
@@ -28,31 +31,23 @@ async function gh(path, opts) {
   return j;
 }
 
-async function getVar(name) {
+async function getFileContent(repoPath) {
   try {
-    const j = await gh('/repos/' + REPO + '/actions/variables/' + name);
-    return j.value;
+    const j = await gh('/repos/' + REPO + '/contents/' + encodeURI(repoPath) + '?ref=' + BRANCH);
+    return { sha: j.sha, text: Buffer.from(j.content, 'base64').toString('utf8') };
   } catch (e) {
-    return null;
+    return { sha: null, text: null };
   }
 }
 
-async function setVar(name, value) {
-  value = String(value == null ? '' : value);
-  try {
-    const cur = await gh('/repos/' + REPO + '/actions/variables/' + name);
-    if (cur.value === value) return; // no change
-    await gh('/repos/' + REPO + '/actions/variables/' + name, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, value })
-    });
-    return;
-  } catch (e) { /* variable doesn't exist yet */ }
-  await gh('/repos/' + REPO + '/actions/variables', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, value })
+async function putFile(repoPath, contentBuf, message) {
+  const existing = await gh('/repos/' + REPO + '/contents/' + encodeURI(repoPath) + '?ref=' + BRANCH).catch(() => null);
+  const body = { message, content: contentBuf.toString('base64'), branch: BRANCH };
+  if (existing && existing.sha) body.sha = existing.sha;
+  await gh('/repos/' + REPO + '/contents/' + encodeURI(repoPath), {
+    method: 'PUT',
+    headers: ghHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body)
   });
 }
 
@@ -82,49 +77,13 @@ async function tgFileBytes(fileId) {
   return Buffer.from(await r.arrayBuffer());
 }
 
-async function putFile(repoPath, contentBuf, message) {
-  const existing = await gh('/repos/' + REPO + '/contents/' + encodeURI(repoPath) + '?ref=' + BRANCH).catch(() => null);
-  const body = { message, content: contentBuf.toString('base64'), branch: BRANCH };
-  if (existing && existing.sha) body.sha = existing.sha;
-  await gh('/repos/' + REPO + '/contents/' + encodeURI(repoPath), {
-    method: 'PUT',
-    headers: ghHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(body)
-  });
-}
-
-async function getCustom() {
-  const j = await gh('/repos/' + REPO + '/contents/custom/custom_v2.json?ref=' + BRANCH);
-  return JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
-}
-
-async function getOwner() {
-  try {
-    const j = await gh('/repos/' + REPO + '/contents/' + OWNER_CHAT_FILE + '?ref=' + BRANCH);
-    return Buffer.from(j.content, 'base64').toString('utf8').trim();
-  } catch (e) {
-    return null;
-  }
-}
-
-async function setOwner(chatId) {
-  await putFile(OWNER_CHAT_FILE, Buffer.from(String(chatId), 'utf8'), 'pair bot owner');
-}
-
-async function dispatchRegen() {
-  await fetch(GH + '/repos/' + REPO + '/actions/workflows/sync-upstream.yml/dispatches', {
-    method: 'POST',
-    headers: ghHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ ref: BRANCH })
-  });
-}
-
 async function processTrack(chatId, audio, trackId) {
   await tg('sendChatAction', { chat_id: chatId, action: 'typing' });
   console.log('track ' + trackId + ': uploading audio (' + audio.bytes.length + ' bytes)');
   await putFile('tracks/' + trackId, audio.bytes, 'add track ' + trackId + ' audio');
 
-  const json = await getCustom();
+  const { text } = await getFileContent('custom/custom_v2.json');
+  const json = JSON.parse(text || '{"sources": []}');
   let src = (json.sources || []).find(s => s.tracksStorages && s.tracksStorages[0]
     && (s.tracksStorages[0].urlTemplate || '').indexOf(REPO.split('/')[0]) >= 0);
   if (!src) {
@@ -141,16 +100,18 @@ async function processTrack(chatId, audio, trackId) {
     Buffer.from(JSON.stringify(json, null, 2), 'utf8'),
     'add track ' + trackId + ' to custom list');
 
-  await dispatchRegen();
-  console.log('track ' + trackId + ': workflow dispatched');
+  await fetch(GH + '/repos/' + REPO + '/actions/workflows/sync-upstream.yml/dispatches', {
+    method: 'POST',
+    headers: ghHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ ref: BRANCH })
+  });
+  console.log('track ' + trackId + ': regen dispatched');
 }
 
 function describeAudio(m) {
   const a = m.audio || m.document;
   let title = ((a.title || a.file_name || '').replace(/\.[a-z0-9]+$/i, '')) || null;
   const performer = a.performer || null;
-  // Telegram files are usually "Artist - Title.mp3" and the artist line is shown
-  // separately by the app — strip the duplicated prefix from the spoof title.
   if (performer && title && title.toLowerCase().startsWith(performer.toLowerCase())) {
     const rest = title.slice(performer.length).replace(/^\s*[-–—]\s*/, '');
     if (rest) title = rest;
@@ -158,24 +119,36 @@ function describeAudio(m) {
   return { fileId: a.file_id, title, performer };
 }
 
-async function handleUpdate(u, owner) {
-  const m = u.message || u.edited_message;
-  if (!m || !m.chat) return;
+(async () => {
+  if (!process.env.TG_TOKEN || process.env.TG_TOKEN.length < 10) {
+    console.log('FCKBOT_TG_TOKEN secret is not set — skipping');
+    return;
+  }
+  // the update forwarded by the webhook worker
+  const ev = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+  const payloadRaw = ev.inputs && ev.inputs.payload;
+  if (!payloadRaw) { console.log('no payload input — skipping'); return; }
+  const update = JSON.parse(payloadRaw);
+  const m = update.message || update.edited_message;
+  if (!m || !m.chat) { console.log('update without message — skipping'); return; }
+
   const chatId = String(m.chat.id);
+  const ownerFile = await getFileContent(OWNER_FILE);
+  const owner = ownerFile.text ? ownerFile.text.trim() : null;
 
-  if (!owner) {
-    owner = chatId;
-    await setOwner(chatId);
-    console.log('owner paired: ' + chatId);
-    await tg('sendMessage', { chat_id: chatId, text: 'Бот привязан к этому чату. Кирай мне аудиофайл (без цензуры), а в подписи — ссылку на трек Яндекс.Музыки (или ссылку отдельным сообщением).' });
-    return { owner };
-  }
+  const stateFile = await getFileContent(STATE_FILE);
+  let state = { pending: null };
+  try { if (stateFile.text) state = JSON.parse(stateFile.text); } catch (e) { }
+  if (!state.pending) state.pending = null;
+
   if (chatId !== owner) {
+    if (!owner) {
+      console.log('no owner paired yet — ignoring (pair via the old manual flow)');
+      return;
+    }
     await tg('sendMessage', { chat_id: chatId, text: 'Нет доступа.' });
-    return { owner };
+    return;
   }
-
-  const pending = await getVar('FCKBOT_PENDING');
 
   if (m.audio || (m.document && /audio|mpeg|mp4|flac|ogg/i.test(m.document.mime_type || ''))) {
     const audio = describeAudio(m);
@@ -185,67 +158,46 @@ async function handleUpdate(u, owner) {
       audio.bytes = bytes;
       try {
         await processTrack(chatId, audio, capId);
-        await setVar('FCKBOT_PENDING', '');
+        state.pending = null;
+        await putFile(STATE_FILE, Buffer.from(JSON.stringify(state, null, 2), 'utf8'), 'bot state [skip ci]');
         await tg('sendMessage', { chat_id: chatId, text: '✅ Трек ' + capId + ' добавлен в базу (' + (audio.title || 'без названия') + '). Список пересобирается — приложение подхватит при следующем запуске.' });
       } catch (e) {
         await tg('sendMessage', { chat_id: chatId, text: '❌ Ошибка: ' + e.message });
       }
-      return { owner };
+      return;
     }
-    await setVar('FCKBOT_PENDING', JSON.stringify({ chatId, ...audio, ts: Date.now() }));
+    state.pending = { fileId: audio.fileId, title: audio.title, performer: audio.performer };
+    await putFile(STATE_FILE, Buffer.from(JSON.stringify(state, null, 2), 'utf8'), 'bot state [skip ci]');
     await tg('sendMessage', { chat_id: chatId, text: 'Аудио получено' + (audio.title ? ' («' + audio.title + '»)' : '') + '. Теперь пришли ссылку на трек Яндекс.Музыки (music.yandex.ru/album/.../track/...).' });
-    return { owner };
+    return;
   }
 
   if (m.text) {
     if (m.text.trim() === '/start' || m.text.trim() === '/help') {
       await tg('sendMessage', { chat_id: chatId, text: 'Кирай: 1) аудиофайл без цензуры, 2) ссылку на трек (music.yandex.ru/album/.../track/...). Можно одним сообщением — аудио с ссылкой в подписи. Я залью файл в tracks/<id>, добавлю запись в кастом-список и пересоберу базу.' });
-      return { owner };
+      return;
     }
     const trackId = parseTrackId(m.text);
     if (!trackId) {
       await tg('sendMessage', { chat_id: chatId, text: 'Не вижу id трека. Пришли ссылку вида music.yandex.ru/album/<альбом>/track/<id> или просто число-id.' });
-      return { owner };
+      return;
     }
-    if (!pending) {
+    if (!state.pending) {
       await tg('sendMessage', { chat_id: chatId, text: 'Сначала пришли аудиофайл (без цензуры), потом ссылку.' });
-      return { owner };
+      return;
     }
-    const audio = JSON.parse(pending);
+    const audio = state.pending;
     const bytes = await tgFileBytes(audio.fileId);
     audio.bytes = bytes;
     try {
       await processTrack(chatId, audio, trackId);
-      await setVar('FCKBOT_PENDING', '');
+      state.pending = null;
+      await putFile(STATE_FILE, Buffer.from(JSON.stringify(state, null, 2), 'utf8'), 'bot state [skip ci]');
       await tg('sendMessage', { chat_id: chatId, text: '✅ Трек ' + trackId + ' добавлен в базу (' + (audio.title || 'без названия') + '). Список пересобирается — приложение подхватит при следующем запуске.' });
     } catch (e) {
       await tg('sendMessage', { chat_id: chatId, text: '❌ Ошибка: ' + e.message });
     }
-    return { owner };
+    return;
   }
-  return { owner };
-}
-
-(async () => {
-  const tokenOk = process.env.TG_TOKEN && process.env.TG_TOKEN.length > 10;
-  if (!tokenOk) { console.log('FCKBOT_TG_TOKEN secret is not set — skipping poll'); return; }
-
-  let owner = await getOwner();
-  let offset = parseInt((await getVar('FCKBOT_OFFSET')) || '0', 10) || 0;
-  console.log('polling, offset=' + offset + ', owner=' + (owner || 'not paired'));
-
-  const updates = await tg('getUpdates', { timeout: 5, offset });
-  let lastOffset = offset;
-  let curOwner = owner;
-  for (const u of updates) {
-    lastOffset = u.update_id + 1;
-    try {
-      const r = await handleUpdate(u, curOwner);
-      if (r && r.owner) curOwner = r.owner;
-    } catch (e) {
-      console.log('handle error: ' + e.message);
-    }
-  }
-  await setVar('FCKBOT_OFFSET', String(lastOffset));
-  console.log('done, offset now ' + lastOffset);
+  console.log('unsupported update type — skipping');
 })().catch(e => { console.log('fatal: ' + e.message); process.exit(1); });
