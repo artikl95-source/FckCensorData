@@ -1,7 +1,6 @@
-// fckbot for GitHub Actions — processes ONE Telegram update forwarded by the
-// Cloudflare webhook worker via workflow_dispatch inputs.payload.
+// fckbot for GitHub Actions — polls Telegram (getUpdates), adds tracks to the fork.
 // Env: TG_TOKEN (secret), GH_TOKEN (secrets.GITHUB_TOKEN), GH_REPOSITORY.
-// State: custom/bot_state.json (pending audio) and custom/bot_owner.txt (chat id).
+// State: custom/bot_state.json (offset + pending audio), custom/bot_owner.txt (chat id).
 
 const fs = require('fs');
 
@@ -119,36 +118,24 @@ function describeAudio(m) {
   return { fileId: a.file_id, title, performer };
 }
 
-(async () => {
-  if (!process.env.TG_TOKEN || process.env.TG_TOKEN.length < 10) {
-    console.log('FCKBOT_TG_TOKEN secret is not set — skipping');
+async function handleUpdate(u, owner, state) {
+  const m = u.message || u.edited_message;
+  if (!m || !m.chat) return;
+  const chatId = String(m.chat.id);
+
+  if (!owner) {
+    owner = chatId;
+    state.owner = owner;
+    console.log('owner paired: ' + owner);
+    await tg('sendMessage', { chat_id: chatId, text: 'Бот привязан к этому чату. Кирай мне аудиофайл (без цензуры), а в подписи — ссылку на трек Яндекс.Музыки (или ссылку отдельным сообщением).' });
     return;
   }
-  // the update forwarded by the webhook worker
-  const ev = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
-  const payloadRaw = ev.inputs && ev.inputs.payload;
-  if (!payloadRaw) { console.log('no payload input — skipping'); return; }
-  const update = JSON.parse(payloadRaw);
-  const m = update.message || update.edited_message;
-  if (!m || !m.chat) { console.log('update without message — skipping'); return; }
-
-  const chatId = String(m.chat.id);
-  const ownerFile = await getFileContent(OWNER_FILE);
-  const owner = ownerFile.text ? ownerFile.text.trim() : null;
-
-  const stateFile = await getFileContent(STATE_FILE);
-  let state = { pending: null };
-  try { if (stateFile.text) state = JSON.parse(stateFile.text); } catch (e) { }
-  if (!state.pending) state.pending = null;
-
   if (chatId !== owner) {
-    if (!owner) {
-      console.log('no owner paired yet — ignoring (pair via the old manual flow)');
-      return;
-    }
     await tg('sendMessage', { chat_id: chatId, text: 'Нет доступа.' });
     return;
   }
+
+  const pending = state.pending;
 
   if (m.audio || (m.document && /audio|mpeg|mp4|flac|ogg/i.test(m.document.mime_type || ''))) {
     const audio = describeAudio(m);
@@ -159,7 +146,6 @@ function describeAudio(m) {
       try {
         await processTrack(chatId, audio, capId);
         state.pending = null;
-        await putFile(STATE_FILE, Buffer.from(JSON.stringify(state, null, 2), 'utf8'), 'bot state [skip ci]');
         await tg('sendMessage', { chat_id: chatId, text: '✅ Трек ' + capId + ' добавлен в базу (' + (audio.title || 'без названия') + '). Список пересобирается — приложение подхватит при следующем запуске.' });
       } catch (e) {
         await tg('sendMessage', { chat_id: chatId, text: '❌ Ошибка: ' + e.message });
@@ -167,7 +153,6 @@ function describeAudio(m) {
       return;
     }
     state.pending = { fileId: audio.fileId, title: audio.title, performer: audio.performer };
-    await putFile(STATE_FILE, Buffer.from(JSON.stringify(state, null, 2), 'utf8'), 'bot state [skip ci]');
     await tg('sendMessage', { chat_id: chatId, text: 'Аудио получено' + (audio.title ? ' («' + audio.title + '»)' : '') + '. Теперь пришли ссылку на трек Яндекс.Музыки (music.yandex.ru/album/.../track/...).' });
     return;
   }
@@ -182,22 +167,60 @@ function describeAudio(m) {
       await tg('sendMessage', { chat_id: chatId, text: 'Не вижу id трека. Пришли ссылку вида music.yandex.ru/album/<альбом>/track/<id> или просто число-id.' });
       return;
     }
-    if (!state.pending) {
+    if (!pending) {
       await tg('sendMessage', { chat_id: chatId, text: 'Сначала пришли аудиофайл (без цензуры), потом ссылку.' });
       return;
     }
-    const audio = state.pending;
+    const audio = pending;
     const bytes = await tgFileBytes(audio.fileId);
     audio.bytes = bytes;
     try {
       await processTrack(chatId, audio, trackId);
       state.pending = null;
-      await putFile(STATE_FILE, Buffer.from(JSON.stringify(state, null, 2), 'utf8'), 'bot state [skip ci]');
       await tg('sendMessage', { chat_id: chatId, text: '✅ Трек ' + trackId + ' добавлен в базу (' + (audio.title || 'без названия') + '). Список пересобирается — приложение подхватит при следующем запуске.' });
     } catch (e) {
       await tg('sendMessage', { chat_id: chatId, text: '❌ Ошибка: ' + e.message });
     }
     return;
   }
-  console.log('unsupported update type — skipping');
+}
+
+(async () => {
+  if (!process.env.TG_TOKEN || process.env.TG_TOKEN.length < 10) {
+    console.log('FCKBOT_TG_TOKEN secret is not set — skipping poll');
+    return;
+  }
+  // a leftover webhook blocks getUpdates polling — remove it if present
+  try {
+    await tg('deleteWebhook', { drop_pending_updates: false });
+  } catch (e) {
+    console.log('deleteWebhook: ' + e.message);
+  }
+
+  const ownerFile = await getFileContent(OWNER_FILE);
+  let owner = ownerFile.text ? ownerFile.text.trim() : null;
+  const stateFile = await getFileContent(STATE_FILE);
+  let state;
+  try { state = stateFile.text ? JSON.parse(stateFile.text) : { offset: 0, pending: null }; }
+  catch (e) { state = { offset: 0, pending: null }; }
+  if (state.owner) owner = state.owner;
+
+  let offset = state.offset || 0;
+  console.log('polling, offset=' + offset + ', owner=' + (owner || 'not paired'));
+
+  const updates = await tg('getUpdates', { timeout: 5, offset });
+  const origOffset = offset;
+  let lastOffset = offset;
+  for (const u of updates) {
+    lastOffset = u.update_id + 1;
+    state.offset = lastOffset;
+    try { await handleUpdate(u, owner, state); } catch (e) { console.log('handle error: ' + e.message); }
+  }
+  if (lastOffset !== origOffset) {
+    state.offset = lastOffset;
+    await putFile(STATE_FILE,
+      Buffer.from(JSON.stringify(state, null, 2), 'utf8'),
+      'bot state [skip ci]');
+  }
+  console.log('done, offset now ' + lastOffset);
 })().catch(e => { console.log('fatal: ' + e.message); process.exit(1); });
