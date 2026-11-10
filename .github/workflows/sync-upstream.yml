@@ -1,6 +1,9 @@
 name: Sync upstream + regenerate combined list
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     - cron: '0 */6 * * *'
   workflow_dispatch:
@@ -32,5 +35,4 @@ jobs:
         run: |
           git add -A
           git diff --cached --quiet || git commit -m "regenerate combined list [skip ci]"
-          git pull --rebase origin main || true
           git push
