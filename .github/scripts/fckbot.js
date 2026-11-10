@@ -5,7 +5,7 @@
 const TG = 'https://api.telegram.org/bot' + process.env.TG_TOKEN;
 const GH = 'https://api.github.com';
 const REPO = process.env.GH_REPOSITORY;
-const TOKEN = process.env.GITHUB_TOKEN;
+const TOKEN = process.env.GH_TOKEN;
 const BRANCH = 'main';
 const TEMPLATE = 'raw.githubusercontent.com/' + REPO + '/refs/heads/main/tracks/%%';
 
@@ -225,6 +225,7 @@ async function handleUpdate(u, owner) {
 (async () => {
   const tokenOk = process.env.TG_TOKEN && process.env.TG_TOKEN.length > 10;
   if (!tokenOk) { console.log('FCKBOT_TG_TOKEN secret is not set — skipping poll'); return; }
+  console.log('env lens: GH_TOKEN=' + (process.env.GH_TOKEN || '').length + ' GITHUB_TOKEN=' + (process.env.GITHUB_TOKEN || '').length + ' TG_TOKEN=' + (process.env.TG_TOKEN || '').length);
 
   let owner = await getOwner();
   let offset = parseInt((await getVar('FCKBOT_OFFSET')) || '0', 10) || 0;
