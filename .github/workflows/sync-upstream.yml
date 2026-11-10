@@ -15,24 +15,35 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout fork
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Fetch upstream list
+        run: curl -fsSL "https://raw.githubusercontent.com/Hazzz895/FckCensorData/refs/heads/main/list_v2.json" -o upstream_list.json
 
-      - name: Pull upstream
-        run: |
-          git config user.name "fck-sync-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git remote add upstream https://github.com/Hazzz895/FckCensorData.git || true
-          git fetch upstream main
-          git merge upstream/main --no-edit -m "sync upstream" || true
+      - name: Fetch custom list
+        run: curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/custom/custom_v2.json" -o custom_v2.json
 
       - name: Regenerate combined list
         run: python3 scripts/merge_custom.py
 
-      - name: Commit and push
+      - name: Commit via API
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          git add -A
-          git diff --cached --quiet || git commit -m "regenerate combined list [skip ci]"
-          git push
+          put() {
+            local path="$1" file="$2"
+            local sha
+            sha=$(gh api "repos/$GH_REPO/contents/$path?ref=main" --jq .sha 2>/dev/null || true)
+            if [ -n "$sha" ]; then
+              gh api -X PUT "repos/$GH_REPO/contents/$path" \
+                -f message="regen [skip ci]" \
+                -f content="$(base64 -w0 "$file")" \
+                -f sha="$sha" -f branch=main --jq .commit.sha
+            else
+              gh api -X PUT "repos/$GH_REPO/contents/$path" \
+                -f message="regen [skip ci]" \
+                -f content="$(base64 -w0 "$file")" \
+                -f branch=main --jq .commit.sha
+            fi
+          }
+          put "list_v2.json" upstream_list.json || true
+          put "list_v2_combined.json" list_v2_combined.json
