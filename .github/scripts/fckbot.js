@@ -5,7 +5,7 @@
 const TG = 'https://api.telegram.org/bot' + process.env.TG_TOKEN;
 const GH = 'https://api.github.com';
 const REPO = process.env.GH_REPOSITORY;
-const TOKEN = process.env.GH_TOKEN;
+const TOKEN = process.env.GITHUB_TOKEN;
 const BRANCH = 'main';
 const TEMPLATE = 'raw.githubusercontent.com/' + REPO + '/refs/heads/main/tracks/%%';
 
