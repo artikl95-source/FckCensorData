@@ -1,0 +1,35 @@
+name: Sync upstream + regenerate combined list
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pull upstream
+        run: |
+          git config user.name "fck-sync-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git remote add upstream https://github.com/Hazzz895/FckCensorData.git || true
+          git fetch upstream main
+          git merge upstream/main --no-edit -m "sync upstream" || true
+
+      - name: Regenerate combined list
+        run: python3 scripts/merge_custom.py
+
+      - name: Commit and push
+        run: |
+          git add -A
+          git diff --cached --quiet || git commit -m "regenerate combined list [skip ci]"
+          git push
