@@ -24,6 +24,6 @@ jobs:
       - name: Poll Telegram and process tracks
         env:
           TG_TOKEN: ${{ secrets.FCKBOT_TG_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
         run: node fckbot.js
