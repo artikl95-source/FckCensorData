@@ -32,4 +32,5 @@ jobs:
         run: |
           git add -A
           git diff --cached --quiet || git commit -m "regenerate combined list [skip ci]"
+          git pull --rebase origin main || true
           git push
