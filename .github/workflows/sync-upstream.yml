@@ -21,8 +21,11 @@ jobs:
       - name: Fetch custom list
         run: curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/custom/custom_v2.json" -o custom_v2.json
 
+      - name: Fetch merge script
+        run: curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/scripts/merge_custom.py" -o merge_custom.py
+
       - name: Regenerate combined list
-        run: python3 scripts/merge_custom.py
+        run: python3 merge_custom.py
 
       - name: Commit via API
         env:
