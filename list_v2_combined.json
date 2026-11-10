@@ -3110,6 +3110,24 @@
      }
     }
    ]
+  },
+  {
+   "supportedVersions": ">0.0.0",
+   "tracks": {
+    "121004904": {
+     "title": "BOOKER - Новогодняя"
+    }
+   },
+   "tracksStorages": [
+    {
+     "trackIds": [
+      {
+       "id": 121004904
+      }
+     ],
+     "urlTemplate": "raw.githubusercontent.com/artikl95-source/FckCensorData/refs/heads/main/tracks/%%"
+    }
+   ]
   }
  ]
 }
