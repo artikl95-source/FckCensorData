@@ -115,6 +115,20 @@ async function processTrack(chatId, audio, trackId, albumId) {
     Buffer.from(JSON.stringify(json, null, 2), 'utf8'),
     'add track ' + trackId + ' to custom list');
 
+  // meta.json — источник README-секции «Мои треки» (не фатально при ошибке)
+  try {
+    const metaRes = await getFileContent('custom/meta.json');
+    let meta = {};
+    if (metaRes.text) { try { meta = JSON.parse(metaRes.text); } catch (e) { } }
+    meta[String(trackId)] = { title: audio.title || ('трек ' + trackId), artist: audio.artist || '' };
+    await putFile('custom/meta.json',
+      Buffer.from(JSON.stringify(meta, null, 2), 'utf8'),
+      'track ' + trackId + ' meta');
+    console.log('track ' + trackId + ': meta.json updated');
+  } catch (e) {
+    console.log('track ' + trackId + ': meta update failed: ' + e.message);
+  }
+
   await fetch(GH + '/repos/' + REPO + '/actions/workflows/sync-upstream.yml/dispatches', {
     method: 'POST',
     headers: ghHeaders({ 'Content-Type': 'application/json' }),
@@ -126,6 +140,7 @@ async function processTrack(chatId, audio, trackId, albumId) {
 function describeAudio(m) {
   const a = m.audio || m.document;
   let title = ((a.title || a.file_name || '').replace(/\.[a-z0-9]+$/i, '')) || null;
+  const orig = title;
   const performer = a.performer || null;
   if (performer && title && title.toLowerCase().startsWith(performer.toLowerCase())) {
     const rest = title.slice(performer.length).replace(/^\s*[-–—]\s*/, '');
@@ -134,7 +149,13 @@ function describeAudio(m) {
   // файлы обычно называются "Исполнитель - Трек" — исполнитель и так виден отдельной строкой
   const dash = title.lastIndexOf(' - ');
   if (dash > 3) title = title.slice(dash + 3).trim();
-  return { fileId: a.file_id, title, performer, durationMs: (a.duration || 0) * 1000 };
+  // исполнитель для meta.json (README «Мои треки»): тег performer или часть имени файла до " - "
+  let artist = performer;
+  if (!artist && orig) {
+    const d = orig.lastIndexOf(' - ');
+    if (d > 0) artist = orig.slice(0, d).trim().replace(/_/g, ' ');
+  }
+  return { fileId: a.file_id, title, artist: artist || null, performer, durationMs: (a.duration || 0) * 1000 };
 }
 
 async function handleUpdate(u, owner, state) {
