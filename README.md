@@ -34,6 +34,11 @@
 </tr>
 <tr>
 <td></td>
+<td><a href="https://music.yandex.ru/track/107367770">Смокиш</a></td>
+<td>Lida, Слава КПСС</td>
+</tr>
+<tr>
+<td></td>
 <td><a href="https://music.yandex.ru/track/118851341">Толер (До предела)</a></td>
 <td>лучнадежды</td>
 </tr>
