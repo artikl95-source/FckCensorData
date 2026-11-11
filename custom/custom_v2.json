@@ -1,18 +1,23 @@
 {
-  "sources": [
+ "sources": [
+  {
+   "supportedVersions": ">0.0.0",
+   "tracksStorages": [
     {
-      "supportedVersions": ">0.0.0",
-      "tracksStorages": [
-        {
-          "trackIds": [
-            { "id": 121004904 },
-            { "id": 45239758 },
-            { "id": 94960284 },
-            { "id": 108114693 }
-          ],
-          "urlTemplate": "raw.githubusercontent.com/artikl95-source/FckCensorData/refs/heads/main/tracks/%%"
-        }
-      ]
+     "trackIds": [
+      {
+       "id": 121004904
+      },
+      {
+       "id": 45239758
+      },
+      {
+       "id": 94960284
+      }
+     ],
+     "urlTemplate": "raw.githubusercontent.com/artikl95-source/FckCensorData/refs/heads/main/tracks/%%"
     }
-  ]
+   ]
+  }
+ ]
 }
