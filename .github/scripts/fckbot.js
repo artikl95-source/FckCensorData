@@ -69,6 +69,12 @@ function parseTrackId(text) {
   return null;
 }
 
+function parseAlbumId(text) {
+  if (!text) return null;
+  const m = text.match(/album\/(\d+)/i);
+  return m ? m[1] : null;
+}
+
 async function tgFileBytes(fileId) {
   const f = await tg('getFile', { file_id: fileId });
   const r = await fetch('https://api.telegram.org/file/bot' + process.env.TG_TOKEN + '/' + f.file_path);
@@ -76,7 +82,7 @@ async function tgFileBytes(fileId) {
   return Buffer.from(await r.arrayBuffer());
 }
 
-async function processTrack(chatId, audio, trackId) {
+async function processTrack(chatId, audio, trackId, albumId) {
   await tg('sendChatAction', { chat_id: chatId, action: 'typing' });
   console.log('track ' + trackId + ': uploading audio (' + audio.bytes.length + ' bytes)');
   await putFile('tracks/' + trackId, audio.bytes, 'add track ' + trackId + ' audio');
@@ -91,6 +97,8 @@ async function processTrack(chatId, audio, trackId) {
   }
   src.tracks[trackId] = { title: audio.title || ('Track ' + trackId) };
   if (audio.performer) src.tracks[trackId].artists = [{ id: 0, name: audio.performer }];
+  if (albumId) src.tracks[trackId].__fckAlbumId = String(albumId);
+  if (audio.durationMs > 0) src.tracks[trackId].__fckDurationMs = audio.durationMs;
   const st = src.tracksStorages[0];
   if (!st.trackIds.some(t => String(t.id) === String(trackId))) st.trackIds.push({ id: Number(trackId) });
 
@@ -115,7 +123,7 @@ function describeAudio(m) {
     const rest = title.slice(performer.length).replace(/^\s*[-–—]\s*/, '');
     if (rest) title = rest;
   }
-  return { fileId: a.file_id, title, performer };
+  return { fileId: a.file_id, title, performer, durationMs: (a.duration || 0) * 1000 };
 }
 
 async function handleUpdate(u, owner, state) {
@@ -144,7 +152,7 @@ async function handleUpdate(u, owner, state) {
       const bytes = await tgFileBytes(audio.fileId);
       audio.bytes = bytes;
       try {
-        await processTrack(chatId, audio, capId);
+        await processTrack(chatId, audio, capId, parseAlbumId(m.caption));
         state.pending = null;
         await tg('sendMessage', { chat_id: chatId, text: '✅ Трек ' + capId + ' добавлен в базу (' + (audio.title || 'без названия') + '). Список пересобирается — приложение подхватит при следующем запуске.' });
       } catch (e) {
@@ -152,7 +160,7 @@ async function handleUpdate(u, owner, state) {
       }
       return;
     }
-    state.pending = { fileId: audio.fileId, title: audio.title, performer: audio.performer };
+    state.pending = { fileId: audio.fileId, title: audio.title, performer: audio.performer, durationMs: audio.durationMs || 0 };
     await tg('sendMessage', { chat_id: chatId, text: 'Аудио получено' + (audio.title ? ' («' + audio.title + '»)' : '') + '. Теперь пришли ссылку на трек Яндекс.Музыки (music.yandex.ru/album/.../track/...).' });
     return;
   }
@@ -167,15 +175,15 @@ async function handleUpdate(u, owner, state) {
       await tg('sendMessage', { chat_id: chatId, text: 'Не вижу id трека. Пришли ссылку вида music.yandex.ru/album/<альбом>/track/<id> или просто число-id.' });
       return;
     }
-    if (!pending) {
+    if (!state.pending) {
       await tg('sendMessage', { chat_id: chatId, text: 'Сначала пришли аудиофайл (без цензуры), потом ссылку.' });
       return;
     }
-    const audio = pending;
+    const audio = state.pending;
     const bytes = await tgFileBytes(audio.fileId);
     audio.bytes = bytes;
     try {
-      await processTrack(chatId, audio, trackId);
+      await processTrack(chatId, audio, trackId, parseAlbumId(m.text));
       state.pending = null;
       await tg('sendMessage', { chat_id: chatId, text: '✅ Трек ' + trackId + ' добавлен в базу (' + (audio.title || 'без названия') + '). Список пересобирается — приложение подхватит при следующем запуске.' });
     } catch (e) {
