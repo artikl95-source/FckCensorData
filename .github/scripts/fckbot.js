@@ -14,7 +14,7 @@ const REPO = process.env.GH_REPOSITORY;
 const TOKEN = process.env.GH_TOKEN;
 const BRANCH = 'main';
 const TEMPLATE = 'raw.githubusercontent.com/' + REPO + '/refs/heads/main/tracks/%%';
-const WEBHOOK_URL = 'https://fckbot.artikl95.workers.dev/telegram?secret=fckbot-2026-artikl95-x7q2k';
+const WEBHOOK_URL = 'https://fckbot.artikl95.workers.dev/telegram?secret=fckbot-2026-9afee34ef9413103';
 
 function hashStr(s) {
   let h = 0;
