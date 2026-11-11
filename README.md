@@ -14,6 +14,11 @@
 </tr>
 <tr>
 <td></td>
+<td><a href="https://music.yandex.ru/track/51039987">Я сошёл с ума</a></td>
+<td>1.Kla$</td>
+</tr>
+<tr>
+<td></td>
 <td><a href="https://music.yandex.ru/track/51040068">Я хочу</a></td>
 <td>1.Kla$, CZAR</td>
 </tr>
