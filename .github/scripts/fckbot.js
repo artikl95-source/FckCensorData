@@ -1,4 +1,8 @@
-// fckbot for GitHub Actions — polls Telegram (getUpdates), adds tracks to the fork.
+// fckbot for GitHub Actions — dual mode:
+// 1) webhook path: the CF worker forwards a Telegram update via workflow_dispatch
+//    inputs.payload — we process exactly that update (instant).
+// 2) cron rescue: if no payload, poll getUpdates ONLY while the webhook is down,
+//    then set the webhook back (self-healing; never fights the worker).
 // Env: TG_TOKEN (secret), GH_TOKEN (secrets.GITHUB_TOKEN), GH_REPOSITORY.
 // State: custom/bot_state.json (offset + pending audio), custom/bot_owner.txt (chat id).
 
@@ -10,6 +14,7 @@ const REPO = process.env.GH_REPOSITORY;
 const TOKEN = process.env.GH_TOKEN;
 const BRANCH = 'main';
 const TEMPLATE = 'raw.githubusercontent.com/' + REPO + '/refs/heads/main/tracks/%%';
+const WEBHOOK_URL = 'https://fckbot.artikl95.workers.dev/telegram?secret=fckbot-2026-artikl95-x7q2k';
 
 function hashStr(s) {
   let h = 0;
@@ -201,24 +206,59 @@ async function handleUpdate(u, owner, state) {
 
 (async () => {
   if (!process.env.TG_TOKEN || process.env.TG_TOKEN.length < 10) {
-    console.log('FCKBOT_TG_TOKEN secret is not set — skipping poll');
+    console.log('FCKBOT_TG_TOKEN secret is not set — skipping');
     return;
   }
-  // a leftover webhook blocks getUpdates polling — remove it if present
+
+  const loadState = async () => {
+    const ownerFile = await getFileContent(OWNER_FILE);
+    let owner = ownerFile.text ? ownerFile.text.trim() : null;
+    const stateFile = await getFileContent(STATE_FILE);
+    let state;
+    try { state = stateFile.text ? JSON.parse(stateFile.text) : { offset: 0, pending: null }; }
+    catch (e) { state = { offset: 0, pending: null }; }
+    if (state.owner) owner = state.owner;
+    return { owner, state };
+  };
+
+  // --- Режим 1: апдейт от воркера (workflow_dispatch с inputs.payload) ---
+  let payload = null;
+  try {
+    const ev = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+    const raw = ev && ev.inputs && ev.inputs.payload;
+    if (raw && raw !== '{}') payload = JSON.parse(raw);
+  } catch (e) { }
+
+  if (payload && payload.update_id !== undefined) {
+    console.log('webhook mode, update_id=' + payload.update_id);
+    const { owner, state } = await loadState();
+    const before = owner + '|' + JSON.stringify(state.pending);
+    try { await handleUpdate(payload, owner, state); } catch (e) { console.log('handle error: ' + e.message); }
+    const after = (state.owner || owner) + '|' + JSON.stringify(state.pending);
+    if (after !== before) {
+      await putFile(STATE_FILE,
+        Buffer.from(JSON.stringify(state, null, 2), 'utf8'),
+        'bot state [skip ci]');
+    }
+    console.log('done (webhook mode)');
+    return;
+  }
+
+  // --- Режим 2: резервный cron-опрос — только пока webhook не живёт ---
+  const wh = await tg('getWebhookInfo', {});
+  if (wh.url) {
+    console.log('webhook active (' + wh.url + ') — instant delivery via worker, nothing to poll');
+    return;
+  }
+  console.log('webhook is down — rescue poll');
+
   try {
     await tg('deleteWebhook', { drop_pending_updates: false });
   } catch (e) {
     console.log('deleteWebhook: ' + e.message);
   }
 
-  const ownerFile = await getFileContent(OWNER_FILE);
-  let owner = ownerFile.text ? ownerFile.text.trim() : null;
-  const stateFile = await getFileContent(STATE_FILE);
-  let state;
-  try { state = stateFile.text ? JSON.parse(stateFile.text) : { offset: 0, pending: null }; }
-  catch (e) { state = { offset: 0, pending: null }; }
-  if (state.owner) owner = state.owner;
-
+  const { owner, state } = await loadState();
   let offset = state.offset || 0;
   console.log('polling, offset=' + offset + ', owner=' + (owner || 'not paired'));
 
@@ -237,4 +277,12 @@ async function handleUpdate(u, owner, state) {
       'bot state [skip ci]');
   }
   console.log('done, offset now ' + lastOffset);
+
+  // restore the instant webhook path after the rescue
+  try {
+    await tg('setWebhook', { url: WEBHOOK_URL, drop_pending_updates: false });
+    console.log('webhook restored');
+  } catch (e) {
+    console.log('setWebhook: ' + e.message);
+  }
 })().catch(e => { console.log('fatal: ' + e.message); process.exit(1); });
