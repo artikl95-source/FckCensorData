@@ -4,6 +4,7 @@
 import base64
 import json
 import os
+import urllib.request
 
 TOKEN = os.environ['GH_TOKEN']
 REPO = os.environ['GH_REPOSITORY']
@@ -17,13 +18,6 @@ FILES = [
 
 
 def api(path, body=None, method='GET'):
-    req = urllib_req(path, body, method)
-    with urllib_open(req) as r:
-        return json.loads(r.read().decode('utf-8') or '{}')
-
-
-def urllib_req(path, body, method):
-    import urllib.request
     req = urllib.request.Request('https://api.github.com' + path, method=method)
     req.add_header('Authorization', 'token ' + TOKEN)
     req.add_header('User-Agent', 'fckbot')
@@ -31,7 +25,8 @@ def urllib_req(path, body, method):
     if body is not None:
         req.add_header('Content-Type', 'application/json')
         req.data = json.dumps(body).encode('utf-8')
-    return req
+    with urllib.request.urlopen(req) as r:
+        return json.loads(r.read().decode('utf-8') or '{}')
 
 
 def put_file(repo_path, local_file, message):
