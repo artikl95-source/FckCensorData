@@ -3114,17 +3114,8 @@
   {
    "supportedVersions": ">0.0.0",
    "tracks": {
-    "45239758": {
-     "title": "Big Baby Tape, Хаски - 98 Flow feat. Хаски"
-    },
-    "94960284": {
-     "title": "Loc-Dog, GUF - Есть че вспомнить"
-    },
-    "108114693": {
-     "title": "Noize MC - Страна Дождей"
-    },
     "121004904": {
-     "title": "Новогодняя"
+     "title": "BOOKER - Новогодняя"
     }
    },
    "tracksStorages": [
@@ -3132,15 +3123,6 @@
      "trackIds": [
       {
        "id": 121004904
-      },
-      {
-       "id": 45239758
-      },
-      {
-       "id": 94960284
-      },
-      {
-       "id": 108114693
       }
      ],
      "urlTemplate": "raw.githubusercontent.com/artikl95-source/FckCensorData/refs/heads/main/tracks/%%"
