@@ -186,7 +186,7 @@ async function handleUpdate(u, owner, state) {
       try {
         await processTrack(chatId, audio, capId, parseAlbumId(m.caption));
         state.pending = null;
-        await tg('sendMessage', { chat_id: chatId, text: '✅ Трек ' + capId + ' добавлен в базу (' + (audio.title || 'без названия') + '). Список пересобирается — приложение подхватит при следующем запуске.' });
+        await tg('sendMessage', { chat_id: chatId, text: '✅ Трек ' + capId + ' добавлен в базу (' + (audio.title || 'без названия') + '). Список пересобирается — через минуту-две трек сам появится в приложении (перезапуск не нужен).' });
       } catch (e) {
         await tg('sendMessage', { chat_id: chatId, text: '❌ Ошибка: ' + e.message });
       }
@@ -217,7 +217,7 @@ async function handleUpdate(u, owner, state) {
     try {
       await processTrack(chatId, audio, trackId, parseAlbumId(m.text));
       state.pending = null;
-      await tg('sendMessage', { chat_id: chatId, text: '✅ Трек ' + trackId + ' добавлен в базу (' + (audio.title || 'без названия') + '). Список пересобирается — приложение подхватит при следующем запуске.' });
+      await tg('sendMessage', { chat_id: chatId, text: '✅ Трек ' + trackId + ' добавлен в базу (' + (audio.title || 'без названия') + '). Список пересобирается — через минуту-две трек сам появится в приложении (перезапуск не нужен).' });
     } catch (e) {
       await tg('sendMessage', { chat_id: chatId, text: '❌ Ошибка: ' + e.message });
     }
