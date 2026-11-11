@@ -22,19 +22,21 @@ jobs:
         run: curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/custom/custom_v2.json" -o custom_v2.json
 
       - name: Fetch custom meta
-        run: curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/custom/meta.json" -o meta.json || echo '{}' > meta.json
+        run: curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/custom/meta.json" -o meta.json
 
       - name: Fetch fork README
         run: curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/README.md" -o README.md
 
-      - name: Fetch merge script
-        run: curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/scripts/merge_custom.py" -o merge_custom.py
+      - name: Fetch scripts
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/scripts/merge_custom.py" -o merge_custom.py
+          curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/scripts/regen_readme.py" -o regen_readme.py
 
       - name: Regenerate combined list
         run: python3 merge_custom.py
 
       - name: Regenerate README
-        run: python3 scripts/regen_readme.py
+        run: python3 regen_readme.py
 
       - name: Commit via API
         env:
