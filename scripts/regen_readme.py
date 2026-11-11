@@ -14,9 +14,9 @@ def main():
         readme = f.read()
 
     meta = {}
-    if os.path.exists('custom/meta.json'):
+    if os.path.exists('meta.json'):
         try:
-            with open('custom/meta.json', 'r', encoding='utf-8') as f:
+            with open('meta.json', 'r', encoding='utf-8') as f:
                 meta = json.load(f)
         except Exception as e:
             print('WARNING: bad meta.json:', e)
