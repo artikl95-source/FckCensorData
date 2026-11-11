@@ -9,11 +9,6 @@
 <table><tbody>
 <tr>
 <td></td>
-<td><a href="https://music.yandex.ru/track/121004904">Новогодняя</a></td>
-<td>BOOKER</td>
-</tr>
-<tr>
-<td></td>
 <td><a href="https://music.yandex.ru/track/45239758">98 Flow feat. Хаски</a></td>
 <td>Big Baby Tape, Хаски</td>
 </tr>
@@ -21,6 +16,16 @@
 <td></td>
 <td><a href="https://music.yandex.ru/track/94960284">Есть че вспомнить</a></td>
 <td>Loc-Dog, GUF</td>
+</tr>
+<tr>
+<td></td>
+<td><a href="https://music.yandex.ru/track/118851341">Толер (До предела)</a></td>
+<td>лучнадежды</td>
+</tr>
+<tr>
+<td></td>
+<td><a href="https://music.yandex.ru/track/121004904">Новогодняя</a></td>
+<td>BOOKER</td>
 </tr>
 </tbody></table>
 
