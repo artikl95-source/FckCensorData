@@ -22,11 +22,13 @@ jobs:
       - name: Fetch upstream list
         run: curl -fsSL "https://raw.githubusercontent.com/Hazzz895/FckCensorData/refs/heads/main/list_v2.json" -o upstream_list.json
 
-      - name: Fetch custom list
-        run: curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/custom/custom_v2.json" -o custom_v2.json
+      # raw.githubusercontent lags minutes behind fresh commits — fetch our own
+      # files via the contents API (always fresh) so the merge never sees stale data
+      - name: Fetch custom list via API
+        run: curl -fsSL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/contents/custom/custom_v2.json?ref=main" | python3 -c "import sys,json,base64;print(base64.b64decode(json.load(sys.stdin)['content']).decode('utf-8'))" > custom_v2.json
 
-      - name: Fetch custom meta
-        run: curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/custom/meta.json" -o meta.json
+      - name: Fetch custom meta via API
+        run: curl -fsSL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/contents/custom/meta.json?ref=main" | python3 -c "import sys,json,base64;print(base64.b64decode(json.load(sys.stdin)['content']).decode('utf-8'))" > meta.json
 
       - name: Fetch fork README
         run: curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/README.md" -o README.md
