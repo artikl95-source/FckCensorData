@@ -10,6 +10,12 @@ const REPO = process.env.GH_REPOSITORY;
 const TOKEN = process.env.GH_TOKEN;
 const BRANCH = 'main';
 const TEMPLATE = 'raw.githubusercontent.com/' + REPO + '/refs/heads/main/tracks/%%';
+
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) | 0; }
+  return h;
+}
 const STATE_FILE = 'custom/bot_state.json';
 const OWNER_FILE = 'custom/bot_owner.txt';
 
@@ -87,18 +93,15 @@ async function processTrack(chatId, audio, trackId, albumId) {
   console.log('track ' + trackId + ': uploading audio (' + audio.bytes.length + ' bytes)');
   await putFile('tracks/' + trackId, audio.bytes, 'add track ' + trackId + ' audio');
 
+  // только аудио-подмена: названия/исполнители остаются оригинальными
   const { text } = await getFileContent('custom/custom_v2.json');
   const json = JSON.parse(text || '{"sources": []}');
   let src = (json.sources || []).find(s => s.tracksStorages && s.tracksStorages[0]
     && (s.tracksStorages[0].urlTemplate || '').indexOf(REPO.split('/')[0]) >= 0);
   if (!src) {
-    src = { supportedVersions: '>0.0.0', tracks: {}, tracksStorages: [{ trackIds: [], urlTemplate: TEMPLATE }] };
+    src = { supportedVersions: '>0.0.0', tracksStorages: [{ trackIds: [], urlTemplate: TEMPLATE }] };
     (json.sources = json.sources || []).push(src);
   }
-  src.tracks[trackId] = { title: audio.title || ('Track ' + trackId) };
-  if (audio.performer) src.tracks[trackId].artists = [{ id: 0, name: audio.performer }];
-  if (albumId) src.tracks[trackId].__fckAlbumId = String(albumId);
-  if (audio.durationMs > 0) src.tracks[trackId].__fckDurationMs = audio.durationMs;
   const st = src.tracksStorages[0];
   if (!st.trackIds.some(t => String(t.id) === String(trackId))) st.trackIds.push({ id: Number(trackId) });
 
