@@ -14,6 +14,11 @@
 </tr>
 <tr>
 <td></td>
+<td><a href="https://music.yandex.ru/track/54532129">Розовый Бант</a></td>
+<td>Jubilee, Эмелевская, Masha Hima</td>
+</tr>
+<tr>
+<td></td>
 <td><a href="https://music.yandex.ru/track/94960284">Есть че вспомнить</a></td>
 <td>Loc-Dog, GUF</td>
 </tr>
