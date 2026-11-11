@@ -31,6 +31,7 @@ jobs:
         run: |
           curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/scripts/merge_custom.py" -o merge_custom.py
           curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/scripts/regen_readme.py" -o regen_readme.py
+          curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/scripts/commit_via_api.py" -o commit_via_api.py
 
       - name: Regenerate combined list
         run: python3 merge_custom.py
@@ -41,24 +42,5 @@ jobs:
       - name: Commit via API
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          put() {
-            local path="$1" file="$2"
-            local sha
-            sha=$(gh api "repos/$GH_REPO/contents/$path?ref=main" --jq .sha 2>/dev/null || true)
-            if [ -n "$sha" ]; then
-              gh api -X PUT "repos/$GH_REPO/contents/$path" \
-                -f message="regen [skip ci]" \
-                -f content="$(base64 -w0 "$file")" \
-                -f sha="$sha" -f branch=main --jq .commit.sha
-            else
-              gh api -X PUT "repos/$GH_REPO/contents/$path" \
-                -f message="regen [skip ci]" \
-                -f content="$(base64 -w0 "$file")" \
-                -f branch=main --jq .commit.sha
-            fi
-          }
-          put "list_v2.json" upstream_list.json || true
-          put "list_v2_combined.json" list_v2_combined.json
-          put "README.md" README.md
+          GH_REPOSITORY: ${{ github.repository }}
+        run: python3 commit_via_api.py
