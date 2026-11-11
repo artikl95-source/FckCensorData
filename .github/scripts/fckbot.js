@@ -123,6 +123,9 @@ function describeAudio(m) {
     const rest = title.slice(performer.length).replace(/^\s*[-–—]\s*/, '');
     if (rest) title = rest;
   }
+  // файлы обычно называются "Исполнитель - Трек" — исполнитель и так виден отдельной строкой
+  const dash = title.lastIndexOf(' - ');
+  if (dash > 3) title = title.slice(dash + 3).trim();
   return { fileId: a.file_id, title, performer, durationMs: (a.duration || 0) * 1000 };
 }
 
