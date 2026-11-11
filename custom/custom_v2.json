@@ -3,54 +3,37 @@
     {
       "supportedVersions": ">0.0.0",
       "tracks": {
+        "121004904": {
+          "title": "Новогодняя",
+          "__fckAlbumId": "28981577",
+          "__fckDurationMs": 148000
+        },
         "45239758": {
-          "title": "Big Baby Tape, Хаски - 98 Flow feat. Хаски",
+          "title": "98 Flow feat. Хаски",
+          "artists": [{ "id": 0, "name": "Big Baby Tape, Хаски" }],
           "__fckAlbumId": "6072366",
           "__fckDurationMs": 236000
         },
         "94960284": {
           "title": "Есть че вспомнить",
-          "artists": [
-            {
-              "id": 0,
-              "name": "Loc-Dog, GUF"
-            }
-          ],
+          "artists": [{ "id": 0, "name": "Loc-Dog, GUF" }],
           "__fckAlbumId": "19316618",
           "__fckDurationMs": 187000
         },
         "108114693": {
           "title": "Страна Дождей",
-          "artists": [
-            {
-              "id": 0,
-              "name": "Noize MC"
-            }
-          ],
+          "artists": [{ "id": 0, "name": "Noize MC" }],
           "__fckAlbumId": "23807680",
           "__fckDurationMs": 140000
-        },
-        "121004904": {
-          "title": "Новогодняя",
-          "__fckAlbumId": "28981577",
-          "__fckDurationMs": 148000
         }
       },
       "tracksStorages": [
         {
           "trackIds": [
-            {
-              "id": 121004904
-            },
-            {
-              "id": 94960284
-            },
-            {
-              "id": 108114693
-            },
-            {
-              "id": 45239758
-            }
+            { "id": 121004904 },
+            { "id": 45239758 },
+            { "id": 94960284 },
+            { "id": 108114693 }
           ],
           "urlTemplate": "raw.githubusercontent.com/artikl95-source/FckCensorData/refs/heads/main/tracks/%%"
         }
