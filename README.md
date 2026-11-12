@@ -14,6 +14,11 @@
 </tr>
 <tr>
 <td></td>
+<td><a href="https://music.yandex.ru/track/25785337">Присел и пиздец</a></td>
+<td>Loc-Dog</td>
+</tr>
+<tr>
+<td></td>
 <td><a href="https://music.yandex.ru/track/25785339">Подгрузило</a></td>
 <td>Loc-Dog</td>
 </tr>
