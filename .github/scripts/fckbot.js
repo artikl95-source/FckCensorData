@@ -14,7 +14,8 @@ const REPO = process.env.GH_REPOSITORY;
 const TOKEN = process.env.GH_TOKEN;
 const BRANCH = 'main';
 const TEMPLATE = 'raw.githubusercontent.com/' + REPO + '/refs/heads/main/tracks/%%';
-const WEBHOOK_URL = 'https://fckbot.artikl95.workers.dev/telegram?secret=fckbot-2026-9afee34ef9413103';
+// The webhook restore is done by the WORKER's cron self-heal (the worker owns
+// TG_TOKEN + SETUP_SECRET — no webhook secret is stored in this repo).
 
 function hashStr(s) {
   let h = 0;
@@ -299,11 +300,6 @@ async function handleUpdate(u, owner, state) {
   }
   console.log('done, offset now ' + lastOffset);
 
-  // restore the instant webhook path after the rescue
-  try {
-    await tg('setWebhook', { url: WEBHOOK_URL, drop_pending_updates: false });
-    console.log('webhook restored');
-  } catch (e) {
-    console.log('setWebhook: ' + e.message);
-  }
+  // the worker's cron self-heal re-sets the webhook (this script must not know the secret)
+  console.log('webhook restore left to the worker cron self-heal');
 })().catch(e => { console.log('fatal: ' + e.message); process.exit(1); });
